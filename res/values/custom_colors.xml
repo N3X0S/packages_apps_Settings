@@ -15,6 +15,7 @@
 -->
 
 <resources>
+<<<<<<< HEAD
     <!-- Hard coded background and text colors exposed for better theme support -->
     <color name="background_color_holo_blue_light">@android:color/holo_blue_light</color>
     <color name="background_color_transparent">@android:color/transparent</color>
@@ -38,4 +39,15 @@
     <color name="ownerinfo_divider_color">#ff404040</color>
     <!-- Installed app details -->
     <color name="security_settings_billing_desc_color">#ffffb060</color>
-</resources> 
+    
+
+    <!-- DSLV colors -->
+    <color name="dslv_icon_dark">#ff009688</color>
+    <color name="dslv_float_cackground_color">#ffe1e1e0</color>
+
+    <!-- Expanded desktop -->
+    <drawable name="expanded_item_bg_activated">#ffEEEEEE</drawable>
+    <drawable name="expanded_item_bg">@android:color/background_light</drawable>
+    <color name="expanded_button_color_normal">#4CAF50</color>
+    <color name="expanded_button_color_close">#F44336</color>
+</resources>
