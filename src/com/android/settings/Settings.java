@@ -17,6 +17,7 @@
 package com.android.settings;
 
 import com.android.settings.applications.AppOpsCategory;
+import com.android.settings.terminus.qs.QSTiles;
 
 /**
  * Top-level Settings activity
@@ -102,5 +103,7 @@ public class Settings extends SettingsActivity {
     public static class TopLevelSettings extends SettingsActivity { /* empty */ }
     public static class ApnSettingsActivity extends SettingsActivity { /* empty */ }
     public static class WifiCallingSettingsActivity extends SettingsActivity { /* empty */ }
+    public static class QSTilesSettingsActivity extends SettingsActivity { /* empty */ }
+    public static class ExpandedDesktopSettingsActivity extends SettingsActivity { /* empty */ }
 }
 
