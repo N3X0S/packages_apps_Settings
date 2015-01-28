@@ -25,6 +25,10 @@
                 android:fragment="com.android.settings.terminus.DisplaySettings"
                 android:title="@string/display_settings_title" />
 
+        <PreferenceScreen
+                android:key="lock_screen_weather_settings"
+                android:title="@string/lock_screen_weather_settings_title"
+                android:fragment="com.android.settings.terminus.LockScreenWeatherSettings" />
 
         <PreferenceScreen
                 android:key="wakelock_blocker"
