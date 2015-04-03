@@ -32,8 +32,6 @@ import static android.provider.Settings.System.SCREEN_OFF_TIMEOUT;
 import android.app.Activity;
 import android.app.ActivityManagerNative;
 import android.app.Dialog;
-import android.app.IActivityManager;
-import android.app.ProgressDialog;
 import android.app.admin.DevicePolicyManager;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -41,11 +39,9 @@ import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
-import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.RemoteException;
-import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.preference.ListPreference;
 import android.preference.Preference;
@@ -55,7 +51,6 @@ import android.preference.SwitchPreference;
 import android.provider.SearchIndexableResource;
 import android.provider.Settings;
 import android.text.TextUtils;
-import android.util.DisplayMetrics;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -69,15 +64,12 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
     private static final int FALLBACK_SCREEN_TIMEOUT_VALUE = 30000;
 
     private static final String KEY_SCREEN_TIMEOUT = "screen_timeout";
-    private static final String KEY_LCD_DENSITY = "lcd_density";
     private static final String KEY_FONT_SIZE = "font_size";
     private static final String KEY_SCREEN_SAVER = "screensaver";
     private static final String KEY_LIFT_TO_WAKE = "lift_to_wake";
     private static final String KEY_DOZE = "doze";
     private static final String KEY_AUTO_BRIGHTNESS = "auto_brightness";
     private static final String KEY_AUTO_ROTATE = "auto_rotate";
-
-    private static final String KEY_DOZE_FRAGMENT = "doze_fragment";
 
     private static final int DLG_GLOBAL_CHANGE_WARNING = 1;
 
@@ -86,12 +78,10 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
     private final Configuration mCurConfig = new Configuration();
 
     private ListPreference mScreenTimeoutPreference;
-    private ListPreference mLcdDensityPreference;
     private Preference mScreenSaverPreference;
     private SwitchPreference mLiftToWakePreference;
     private SwitchPreference mDozePreference;
     private SwitchPreference mAutoBrightnessPreference;
-    private PreferenceScreen mDozeFragement;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -116,30 +106,6 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
         disableUnusableTimeouts(mScreenTimeoutPreference);
         updateTimeoutPreferenceDescription(currentTimeout);
 
-        mLcdDensityPreference = (ListPreference) findPreference(KEY_LCD_DENSITY);
-        int defaultDensity = DisplayMetrics.DENSITY_DEVICE;
-        int currentDensity = DisplayMetrics.DENSITY_CURRENT;
-        int currentIndex = -1;
-        String[] densityEntries = new String[8];
-        for (int idx = 0; idx < 8; ++idx) {
-            int pct = (75 + idx*5);
-            int val = defaultDensity * pct / 100;
-            densityEntries[idx] = Integer.toString(val);
-            if (pct == 100) {
-                densityEntries[idx] += " (" + getResources().getString(R.string.lcd_density_default) + ")";
-            }
-            if (currentDensity == val) {
-                currentIndex = idx;
-            }
-        }
-        mLcdDensityPreference.setEntries(densityEntries);
-        mLcdDensityPreference.setEntryValues(densityEntries);
-        if (currentIndex != -1) {
-            mLcdDensityPreference.setValueIndex(currentIndex);
-        }
-        mLcdDensityPreference.setOnPreferenceChangeListener(this);
-        updateLcdDensityPreferenceDescription(currentDensity);
-
         mFontSizePref = (WarnedListPreference) findPreference(KEY_FONT_SIZE);
         mFontSizePref.setOnPreferenceChangeListener(this);
         mFontSizePref.setOnPreferenceClickListener(this);
@@ -158,10 +124,11 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
             removePreference(KEY_LIFT_TO_WAKE);
         }
 
-        mDozeFragement = (PreferenceScreen) findPreference(KEY_DOZE_FRAGMENT);
-        if (!isDozeAvailable(activity)) {
-            getPreferenceScreen().removePreference(mDozeFragement);
-            mDozeFragement = null;
+        if (isDozeAvailable(activity)) {
+            mDozePreference = (SwitchPreference) findPreference(KEY_DOZE);
+            mDozePreference.setOnPreferenceChangeListener(this);
+        } else {
+            removePreference(KEY_DOZE);
         }
 
         if (RotationPolicy.isRotationLockToggleVisible(activity)) {
@@ -249,24 +216,6 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
         preference.setSummary(summary);
     }
 
-    private void updateLcdDensityPreferenceDescription(int currentDensity) {
-        int defaultDensity = DisplayMetrics.DENSITY_DEVICE;
-        ListPreference preference = mLcdDensityPreference;
-        String summary;
-        if (currentDensity < 10 || currentDensity >= 1000) {
-            // Unsupported value
-            summary = getResources().getString(R.string.lcd_density_unsupported);
-        }
-        else {
-            summary = String.format(getResources().getString(R.string.lcd_density_summary),
-                    currentDensity);
-            if (currentDensity == defaultDensity) {
-                summary += " (" + getResources().getString(R.string.lcd_density_default) + ")";
-            }
-        }
-        preference.setSummary(summary);
-    }
-
     private void disableUnusableTimeouts(ListPreference screenTimeoutPreference) {
         final DevicePolicyManager dpm =
                 (DevicePolicyManager) getActivity().getSystemService(
@@ -343,13 +292,6 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
     public void onResume() {
         super.onResume();
         updateState();
-
-        boolean dozeEnabled = Settings.Secure.getInt(
-                getContentResolver(), Settings.Secure.DOZE_ENABLED, 1) != 0;
-        if (mDozeFragement != null) {
-            mDozeFragement.setSummary(dozeEnabled
-                    ? R.string.summary_doze_enabled : R.string.summary_doze_disabled);
-        }
     }
 
     @Override
@@ -382,54 +324,18 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
             int value = Settings.Secure.getInt(getContentResolver(), WAKE_GESTURE_ENABLED, 0);
             mLiftToWakePreference.setChecked(value != 0);
         }
+
+        // Update doze if it is available.
+        if (mDozePreference != null) {
+            int value = Settings.Secure.getInt(getContentResolver(), DOZE_ENABLED, 1);
+            mDozePreference.setChecked(value != 0);
+        }
     }
 
     private void updateScreenSaverSummary() {
         if (mScreenSaverPreference != null) {
             mScreenSaverPreference.setSummary(
                     DreamSettings.getSummaryTextWithDreamName(getActivity()));
-        }
-    }
-
-    public void writeLcdDensityPreference(final Context context, int value) {
-        try {
-            SystemProperties.set("persist.sys.lcd_density", Integer.toString(value));
-        }
-        catch (Exception e) {
-            Log.e(TAG, "Unable to save LCD density");
-            return;
-        }
-        final IActivityManager am = ActivityManagerNative.asInterface(ServiceManager.checkService("activity"));
-        if (am != null) {
-            AsyncTask<Void, Void, Void> task = new AsyncTask<Void, Void, Void>() {
-                @Override
-                protected void onPreExecute() {
-                    ProgressDialog dialog = new ProgressDialog(context);
-                    dialog.setMessage(getResources().getString(R.string.restarting_ui));
-                    dialog.setCancelable(false);
-                    dialog.setIndeterminate(true);
-                    dialog.show();
-                }
-                @Override
-                protected Void doInBackground(Void... arg0) {
-                    // Give the user a second to see the dialog
-                    try {
-                        Thread.sleep(1000);
-                    }
-                    catch (InterruptedException e) {
-                        // Ignore
-                    }
-                    // Restart the UI
-                    try {
-                        am.restart();
-                    }
-                    catch (RemoteException e) {
-                        Log.e(TAG, "Failed to restart");
-                    }
-                    return null;
-                }
-            };
-            task.execute((Void[])null);
         }
     }
 
@@ -459,23 +365,6 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
                 Log.e(TAG, "could not persist screen timeout setting", e);
             }
         }
-        if (KEY_LCD_DENSITY.equals(key)) {
-            try {
-                // The value must begin with a decimal number.  It may
-                // optionally be follewed by a space and arbitrary text.
-                String strValue = (String) objValue;
-                int idx = strValue.indexOf(' ');
-                if (idx > 0) {
-                    strValue = strValue.substring(0, idx);
-                }
-                int value = Integer.parseInt(strValue);
-                writeLcdDensityPreference(preference.getContext(), value);
-                updateLcdDensityPreferenceDescription(value);
-            }
-            catch (NumberFormatException e) {
-                Log.e(TAG, "could not persist display density setting", e);
-            }
-        }
         if (KEY_FONT_SIZE.equals(key)) {
             writeFontSizePreference(objValue);
         }
@@ -487,6 +376,10 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
         if (preference == mLiftToWakePreference) {
             boolean value = (Boolean) objValue;
             Settings.Secure.putInt(getContentResolver(), WAKE_GESTURE_ENABLED, value ? 1 : 0);
+        }
+        if (preference == mDozePreference) {
+            boolean value = (Boolean) objValue;
+            Settings.Secure.putInt(getContentResolver(), DOZE_ENABLED, value ? 1 : 0);
         }
         return true;
     }
@@ -533,7 +426,7 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
                         result.add(KEY_LIFT_TO_WAKE);
                     }
                     if (!isDozeAvailable(context)) {
-                        result.add(KEY_DOZE_FRAGMENT);
+                        result.add(KEY_DOZE);
                     }
                     if (!RotationPolicy.isRotationLockToggleVisible(context)) {
                         result.add(KEY_AUTO_ROTATE);
