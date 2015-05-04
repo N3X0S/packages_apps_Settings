@@ -56,6 +56,12 @@ public class AppOpsCategory extends ListFragment implements
     public AppOpsCategory() {
     }
 
+    public AppOpsCategory(AppOpsState.OpsTemplate template) {
+        Bundle args = new Bundle();
+        args.putParcelable("template", template);
+        setArguments(args);
+    }
+
     /**
      * Helper receiver set up to listen to changes in the application list and forward the change
      * event on to the appropriate sections.
@@ -91,22 +97,23 @@ public class AppOpsCategory extends ListFragment implements
      * A custom Loader that loads all of the installed applications.
      */
     public static class AppListLoader extends AsyncTaskLoader<List<AppOpEntry>> {
-        private final Configuration mLastConfiguration = new Configuration();
-        private final AppOpsState mState;
+        final InterestingConfigChanges mLastConfig = new InterestingConfigChanges();
+        final AppOpsState mState;
+        final AppOpsState.OpsTemplate mTemplate;
 
         private List<AppOpEntry> mApps = null;
         private int mLastDensity = 0;
         private PackageIntentReceiver mPackageObserver = null;
 
-        public AppListLoader(final Context context, final AppOpsState state) {
+        public AppListLoader(Context context, AppOpsState state, AppOpsState.OpsTemplate template) {
             super(context);
 
             mState = state;
+            mTemplate = template;
         }
 
-        @Override
-        public List<AppOpEntry> loadInBackground() {
-            return mState.buildState();
+        @Override public List<AppOpEntry> loadInBackground() {
+            return mState.buildState(mTemplate);
         }
 
         /**
@@ -298,9 +305,13 @@ public class AppOpsCategory extends ListFragment implements
         }
     }
 
-    @Override
-    public Loader<List<AppOpEntry>> onCreateLoader(final int id, final Bundle args) {
-        return new AppListLoader(getActivity(), mState);
+    @Override public Loader<List<AppOpEntry>> onCreateLoader(int id, Bundle args) {
+        Bundle fargs = getArguments();
+        AppOpsState.OpsTemplate template = null;
+        if (fargs != null) {
+            template = (AppOpsState.OpsTemplate)fargs.getParcelable("template");
+        }
+        return new AppListLoader(getActivity(), mState, template);
     }
 
     @Override
