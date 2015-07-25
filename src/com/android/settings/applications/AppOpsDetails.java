@@ -45,95 +45,73 @@ import com.android.settings.Utils;
 import java.util.List;
 
 public class AppOpsDetails extends Fragment {
+    static final String TAG = "AppOpsDetails";
+
     public static final String ARG_PACKAGE_NAME = "package";
 
-    private static final String TAG = "AppOpsDetails";
-
-    private AppOpsManager mAppOps;
-    private LayoutInflater mInflater;
-    private LinearLayout mOperationsSection;
-    private PackageInfo mPackageInfo;
-    private PackageManager mPm;
-    private View mRootView;
     private AppOpsState mState;
+    private PackageManager mPm;
+    private AppOpsManager mAppOps;
+    private PackageInfo mPackageInfo;
+    private LayoutInflater mInflater;
+    private View mRootView;
+    private TextView mAppVersion;
+    private LinearLayout mOperationsSection;
 
-    @Override
-    public void onCreate(final Bundle icicle) {
-        super.onCreate(icicle);
+    // Utility method to set application label and icon.
+    private void setAppLabelAndIcon(PackageInfo pkgInfo) {
+        final View appSnippet = mRootView.findViewById(R.id.app_snippet);
+        appSnippet.setPaddingRelative(0, appSnippet.getPaddingTop(), 0, appSnippet.getPaddingBottom());
 
-        mAppOps = (AppOpsManager) getActivity()
-                .getSystemService(Context.APP_OPS_SERVICE);
-        mInflater = (LayoutInflater) getActivity()
-                .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        ImageView icon = (ImageView) appSnippet.findViewById(R.id.app_icon);
+        icon.setImageDrawable(mPm.getApplicationIcon(pkgInfo.applicationInfo));
+        // Set application name.
+        TextView label = (TextView) appSnippet.findViewById(R.id.app_name);
+        label.setText(mPm.getApplicationLabel(pkgInfo.applicationInfo));
+        // Version number of application
+        mAppVersion = (TextView) appSnippet.findViewById(R.id.app_size);
 
-        mPm = getActivity().getPackageManager();
-        mState = new AppOpsState(getActivity());
+        if (pkgInfo.versionName != null) {
+            mAppVersion.setVisibility(View.VISIBLE);
+            mAppVersion.setText(getActivity().getString(R.string.version_text,
+                    String.valueOf(pkgInfo.versionName)));
+        } else {
+            mAppVersion.setVisibility(View.INVISIBLE);
+        }
+    }
 
+    private String retrieveAppEntry() {
         final Bundle args = getArguments();
-
-        String packageName = args == null ? null : args.getString(ARG_PACKAGE_NAME);
+        String packageName = (args != null) ? args.getString(ARG_PACKAGE_NAME) : null;
         if (packageName == null) {
-            Intent intent = args == null ? null : (Intent) args.getParcelable("intent");
-            if (intent == null) {
-                intent = getActivity().getIntent();
-            }
+            Intent intent = (args == null) ?
+                    getActivity().getIntent() : (Intent) args.getParcelable("intent");
             if (intent != null) {
                 packageName = intent.getData().getSchemeSpecificPart();
             }
         }
-
         try {
             mPackageInfo = mPm.getPackageInfo(packageName,
                     PackageManager.GET_DISABLED_COMPONENTS |
                     PackageManager.GET_UNINSTALLED_PACKAGES);
         } catch (NameNotFoundException e) {
-            Log.e(TAG, "Unable to get package info for " + packageName, e);
+            Log.e(TAG, "Exception when retrieving package:" + packageName, e);
             mPackageInfo = null;
         }
 
-        setHasOptionsMenu(true);
+        return packageName;
     }
 
-    @Override
-    public View onCreateView(final LayoutInflater inflater, final ViewGroup container,
-            final Bundle savedInstanceState) {
-        final View view = inflater.inflate(R.layout.app_ops_details, container, false);
-        Utils.prepareCustomPreferencesList(container, view, view, false);
-
-        mOperationsSection = (LinearLayout) view.findViewById(R.id.operations_section);
-        return mRootView = view;
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-
+    private boolean refreshUi() {
         if (mPackageInfo == null) {
-            ((SettingsActivity) getActivity()).finishPreferencePanel(this, Activity.RESULT_OK,
-                    new Intent().putExtra(ManageApplications.APP_CHG, true));
-            return;
+            return false;
         }
 
-        final View appSnippet = mRootView.findViewById(R.id.app_snippet);
-        appSnippet.setPaddingRelative(0, appSnippet.getPaddingTop(),
-                0, appSnippet.getPaddingBottom());
+        setAppLabelAndIcon(mPackageInfo);
 
-        final ImageView icon = (ImageView) appSnippet.findViewById(R.id.app_icon);
-        icon.setImageDrawable(mPm.getApplicationIcon(mPackageInfo.applicationInfo));
-        final TextView label = (TextView) appSnippet.findViewById(R.id.app_name);
-        label.setText(mPm.getApplicationLabel(mPackageInfo.applicationInfo));
-
-        final TextView appVersion = (TextView) appSnippet.findViewById(R.id.app_size);
-        appVersion.setVisibility(mPackageInfo.versionName == null ? View.INVISIBLE : View.VISIBLE);
-        if (mPackageInfo.versionName != null) {
-            appVersion.setText(getActivity().getString(R.string.version_text,
-                    String.valueOf(mPackageInfo.versionName)));
-        }
+        Resources res = getActivity().getResources();
 
         mOperationsSection.removeAllViews();
-
-        final Resources res = getActivity().getResources();
-
         String lastPermGroup = "";
         for (AppOpsState.OpsTemplate tpl : AppOpsState.ALL_TEMPLATES) {
             List<AppOpsState.AppOpEntry> entries = mState.buildState(tpl,

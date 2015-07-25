@@ -16,8 +16,8 @@
 
 package com.android.settings;
 
-import com.android.settings.applications.AppOpsSummary;
 import com.android.settings.terminus.qs.QSTiles;
+import com.android.settings.applications.AppOpsSummary;
 
 /**
  * Top-level Settings activity
